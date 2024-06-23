@@ -1,9 +1,14 @@
 
-/* Kludge for too-wide forums dropdown */
+/* Kludge for too-wide inputs & selects */
 #poststuff #bbp_forum_attributes select#parent_id,
+#poststuff #bbp_forum_attributes input#menu_order,
 #poststuff #bbp_topic_attributes select#parent_id,
 #poststuff #bbp_reply_attributes select#bbp_forum_id,
-#poststuff #bbp_reply_attributes select#bbp_reply_to {
+#poststuff #bbp_reply_attributes select#bbp_reply_to,
+#poststuff #bbp_reply_attributes input#bbp_forum_id,
+#poststuff #bbp_reply_attributes input#bbp_topic_id,
+#poststuff #bbp_author_metabox input#bbp_author_id,
+#poststuff #bbp_author_metabox input#bbp_author_ip_address {
 	max-width: 170px;
 }
 
