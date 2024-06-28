@@ -320,6 +320,35 @@ body.post-type-reply strong.label {
 	width: 60px;
 }
 
+body.post-type-forum .wp-list-table thead th a,
+body.post-type-forum .wp-list-table tfoot th a,
+body.post-type-topic .wp-list-table thead th a,
+body.post-type-topic .wp-list-table tfoot th a,
+body.post-type-reply .wp-list-table thead th a,
+body.post-type-reply .wp-list-table tfoot th a {
+	display: flex;
+}
+
+body.post-type-forum .wp-list-table thead th:not(.sortable),
+body.post-type-forum .wp-list-table tfoot th:not(.sortable),
+body.post-type-forum .wp-list-table thead th a > span:first-child,
+body.post-type-forum .wp-list-table tfoot th a > span:first-child,
+body.post-type-forum .wp-list-table tbody td,
+body.post-type-topic .wp-list-table thead th:not(.sortable),
+body.post-type-topic .wp-list-table tfoot th:not(.sortable),
+body.post-type-topic .wp-list-table thead th a > span:first-child,
+body.post-type-topic .wp-list-table tfoot th a > span:first-child,
+body.post-type-topic .wp-list-table tbody td,
+body.post-type-reply .wp-list-table thead th:not(.sortable),
+body.post-type-reply .wp-list-table tfoot th:not(.sortable),
+body.post-type-reply .wp-list-table thead th a > span:first-child,
+body.post-type-reply .wp-list-table tfoot th a > span:first-child,
+body.post-type-reply .wp-list-table tbody td {
+	overflow-x: hidden;
+	text-overflow: ellipsis;
+	word-wrap: normal;
+}
+
 .column-bbp_forum_topic_count,
 .column-bbp_forum_reply_count,
 .column-bbp_topic_reply_count,
