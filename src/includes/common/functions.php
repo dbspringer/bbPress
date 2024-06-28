@@ -2519,8 +2519,10 @@ function bbp_request_feed_trap( $query_vars = array() ) {
 				// Get the view query
 				$the_query = bbp_get_view_query_args( $view );
 
-				// Output the feed
-				bbp_display_topics_feed_rss2( $the_query );
+				// Output the feed if view exists
+				if ( ! empty( $the_query ) ) {
+					bbp_display_topics_feed_rss2( $the_query );
+				}
 			}
 		}
 
