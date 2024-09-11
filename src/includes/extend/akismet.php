@@ -196,6 +196,52 @@ class BBP_Akismet {
 	}
 
 	/**
+	 * Resubmit posts to Akismet for spam checking. Since it uses WP_Query it will return the latest posts and move toward older posts.
+	 *
+	 * Functions similarly to Akismet's `recheck_queue_portion`. See: https://plugins.svn.wordpress.org/akismet/trunk/class.akismet-admin.php
+	 * @param  integer $start Number of posts to displace or pass over
+	 * @param  integer $limit Number of posts to retrieve
+	 * @return array          Array with counts for processed, spam, ham, and error
+	 */
+	public function rescan_posts( $start = 0, $limit = 100 ) {
+		if ( $limit <= 0 ) {
+			$limit = 100;
+		}
+
+		if ( $start < 0 ) {
+			$start = 0;
+		}
+
+		$args = array(
+			'offset'         => $start,
+			'posts_per_page' => $limit,
+			'post_status'    => array( 'publish', 'private' ),
+			'post_type'      => array( 'topic','reply' ),
+		);
+		$query = new WP_Query( $args );
+
+		$result_counts = array(
+			'processed' => is_countable( $query->posts ) ? count( $query->posts ) : 0,
+			'spam' => 0,
+			'ham' => 0,
+			'error' => 0,
+		);
+
+		foreach( $query->posts as $post ) {
+			$response = $this->check_post( (array)$post );
+			if ( 'true' === $response['bbp_akismet_result'] ) {
+				$result_counts['spam']++;
+			} elseif ( 'false' === $response['bbp_akismet_result'] ) {
+				$result_counts['ham']++;
+			} else {
+				$result_counts['error']++;
+			}
+		}
+
+		return $result_counts;
+	}
+
+	/**
 	 * Parse the response from the Akismet service, and alter the post data as
 	 * necessary. For example, switch the status to `spam` if spammy.
 	 *
