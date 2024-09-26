@@ -87,7 +87,9 @@ class BBP_Akismet {
 			add_action( 'add_meta_boxes', array( $this, 'add_metaboxes' ) );
 		}
 
+		// Rescan stuff
 		add_action( 'admin_enqueue_scripts', array( $this, 'load_resources' ) );
+		add_action( 'wp_ajax_bbpress_rescan_posts', array( $this, 'rescan_posts' ) );
 	}
 
 	public static function load_resources() {
@@ -236,6 +238,40 @@ class BBP_Akismet {
 	}
 
 	/**
+	 * Resubmit posts to Akismet for spam checking.
+	 */
+	public function rescan_posts() {
+		if ( ! ( isset( $_GET['rescanposts'] ) || ( isset( $_REQUEST['action'] ) && 'bbpress_rescan_posts' == $_REQUEST['action'] ) ) ) {
+			return;
+		}
+
+		if ( ! wp_verify_nonce( $_POST['nonce'], 'akismet_check_for_spam' ) ) {
+			wp_send_json( array(
+				'error' => __( 'You don&#8217;t have permission to do that.', 'akismet' ),
+			));
+			return;
+		}
+
+		$result_counts = self::rescan_posts_portion(
+			empty( $_POST['offset'] ) ? 0 : $_POST['offset'],
+			empty( $_POST['limit'] ) ? 100 : $_POST['limit']
+		);
+
+		if ( defined( 'DOING_AJAX' ) && DOING_AJAX ) {
+			wp_send_json( array(
+				'counts' => $result_counts,
+			));
+		}
+		else {
+			// this should probably be more dynamic
+			$redirect_to = isset( $_SERVER['HTTP_REFERER'] ) ? $_SERVER['HTTP_REFERER'] : admin_url( 'edit.php?post_type=replies' );
+			wp_safe_redirect( $redirect_to );
+			exit;
+		}
+	}
+
+
+	/**
 	 * Resubmit posts to Akismet for spam checking. Since it uses WP_Query it will return the latest posts and move toward older posts.
 	 *
 	 * Functions similarly to Akismet's `recheck_queue_portion`. See: https://plugins.svn.wordpress.org/akismet/trunk/class.akismet-admin.php
@@ -243,7 +279,7 @@ class BBP_Akismet {
 	 * @param  integer $limit Number of posts to retrieve
 	 * @return array          Array with counts for processed, spam, ham, and error
 	 */
-	public function rescan_posts( $start = 0, $limit = 100 ) {
+	public function rescan_posts_portion( $start = 0, $limit = 100 ) {
 		if ( $limit <= 0 ) {
 			$limit = 100;
 		}
