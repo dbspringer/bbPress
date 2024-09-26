@@ -86,6 +86,48 @@ class BBP_Akismet {
 		if ( is_admin() ) {
 			add_action( 'add_meta_boxes', array( $this, 'add_metaboxes' ) );
 		}
+
+		// Rescan stuff
+		add_action( 'admin_enqueue_scripts', array( $this, 'load_resources' ) );
+		add_action( 'wp_ajax_bbpress_rescan_posts', array( $this, 'rescan_posts' ) );
+	}
+
+	public static function load_resources() {
+		global $current_screen, $hook_suffix;
+
+		if ( $hook_suffix == 'edit.php' && in_array( $current_screen->id, array( 'edit-topic', 'edit-reply' ) ) ) {
+			$ak_dir = plugin_dir_url( WP_PLUGIN_DIR . '/akismet/akismet.php' );
+			$akismet_css_path = is_rtl() ? '_inc/rtl/akismet-rtl.css' : '_inc/akismet.css';
+			wp_register_style( 'akismet', $ak_dir . $akismet_css_path, array(), AKISMET_VERSION );
+			wp_enqueue_style( 'akismet' );
+
+			wp_register_style( 'akismet-font-inter', $ak_dir . '_inc/fonts/inter.css', array(), AKISMET_VERSION );
+			wp_enqueue_style( 'akismet-font-inter' );
+
+			$akismet_admin_css_path = is_rtl() ? '_inc/rtl/akismet-admin-rtl.css' : '_inc/akismet-admin.css';
+			wp_register_style( 'akismet-admin', $ak_dir . $akismet_admin_css_path, array(), AKISMET_VERSION );
+			wp_enqueue_style( 'akismet-admin' );
+
+			wp_register_script( 'akismet.js', $ak_dir . '_inc/akismet.js', array( 'jquery' ), AKISMET_VERSION );
+			wp_enqueue_script( 'akismet.js' );
+
+			$inline_js = array(
+				'comment_author_url_nonce' => wp_create_nonce( 'comment_author_url_nonce' ),
+				'strings' => array(
+					'Remove this URL' => __( 'Remove this URL' , 'akismet'),
+					'Removing...'     => __( 'Removing...' , 'akismet'),
+					'URL removed'     => __( 'URL removed' , 'akismet'),
+					'(undo)'          => __( '(undo)' , 'akismet'),
+					'Re-adding...'    => __( 'Re-adding...' , 'akismet'),
+				)
+			);
+
+			if ( isset( $_GET['akismet_recheck'] ) && wp_verify_nonce( $_GET['akismet_recheck'], 'akismet_recheck' ) ) {
+				$inline_js['start_recheck'] = true;
+			}
+
+			wp_localize_script( 'akismet.js', 'WPAkismet', $inline_js );
+		}
 	}
 
 	/**
@@ -193,6 +235,86 @@ class BBP_Akismet {
 
 		// Return the last response back to the filter
 		return $this->last_post;
+	}
+
+	/**
+	 * Resubmit posts to Akismet for spam checking.
+	 */
+	public function rescan_posts() {
+		if ( ! ( isset( $_GET['rescanposts'] ) || ( isset( $_REQUEST['action'] ) && 'bbpress_rescan_posts' == $_REQUEST['action'] ) ) ) {
+			return;
+		}
+
+		if ( ! wp_verify_nonce( $_POST['nonce'], 'akismet_check_for_spam' ) ) {
+			wp_send_json( array(
+				'error' => __( 'You don&#8217;t have permission to do that.', 'akismet' ),
+			));
+			return;
+		}
+
+		$result_counts = self::rescan_posts_portion(
+			empty( $_POST['offset'] ) ? 0 : $_POST['offset'],
+			empty( $_POST['limit'] ) ? 100 : $_POST['limit']
+		);
+
+		if ( defined( 'DOING_AJAX' ) && DOING_AJAX ) {
+			wp_send_json( array(
+				'counts' => $result_counts,
+			));
+		}
+		else {
+			// this should probably be more dynamic
+			$redirect_to = isset( $_SERVER['HTTP_REFERER'] ) ? $_SERVER['HTTP_REFERER'] : admin_url( 'edit.php?post_type=replies' );
+			wp_safe_redirect( $redirect_to );
+			exit;
+		}
+	}
+
+
+	/**
+	 * Resubmit posts to Akismet for spam checking. Since it uses WP_Query it will return the latest posts and move toward older posts.
+	 *
+	 * Functions similarly to Akismet's `recheck_queue_portion`. See: https://plugins.svn.wordpress.org/akismet/trunk/class.akismet-admin.php
+	 * @param  integer $start Number of posts to displace or pass over
+	 * @param  integer $limit Number of posts to retrieve
+	 * @return array          Array with counts for processed, spam, ham, and error
+	 */
+	public function rescan_posts_portion( $start = 0, $limit = 100 ) {
+		if ( $limit <= 0 ) {
+			$limit = 100;
+		}
+
+		if ( $start < 0 ) {
+			$start = 0;
+		}
+
+		$args = array(
+			'offset'         => $start,
+			'posts_per_page' => $limit,
+			'post_status'    => array( 'publish', 'private' ),
+			'post_type'      => array( 'topic','reply' ),
+		);
+		$query = new WP_Query( $args );
+
+		$result_counts = array(
+			'processed' => is_countable( $query->posts ) ? count( $query->posts ) : 0,
+			'spam' => 0,
+			'ham' => 0,
+			'error' => 0,
+		);
+
+		foreach( $query->posts as $post ) {
+			$response = $this->check_post( (array)$post );
+			if ( 'true' === $response['bbp_akismet_result'] ) {
+				$result_counts['spam']++;
+			} elseif ( 'false' === $response['bbp_akismet_result'] ) {
+				$result_counts['ham']++;
+			} else {
+				$result_counts['error']++;
+			}
+		}
+
+		return $result_counts;
 	}
 
 	/**
