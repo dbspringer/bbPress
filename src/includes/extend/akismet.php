@@ -86,6 +86,46 @@ class BBP_Akismet {
 		if ( is_admin() ) {
 			add_action( 'add_meta_boxes', array( $this, 'add_metaboxes' ) );
 		}
+
+		add_action( 'admin_enqueue_scripts', array( $this, 'load_resources' ) );
+	}
+
+	public static function load_resources() {
+		global $current_screen, $hook_suffix;
+
+		if ( $hook_suffix == 'edit.php' && in_array( $current_screen->id, array( 'edit-topic', 'edit-reply' ) ) ) {
+			$ak_dir = plugin_dir_url( WP_PLUGIN_DIR . '/akismet/akismet.php' );
+			$akismet_css_path = is_rtl() ? '_inc/rtl/akismet-rtl.css' : '_inc/akismet.css';
+			wp_register_style( 'akismet', $ak_dir . $akismet_css_path, array(), AKISMET_VERSION );
+			wp_enqueue_style( 'akismet' );
+
+			wp_register_style( 'akismet-font-inter', $ak_dir . '_inc/fonts/inter.css', array(), AKISMET_VERSION );
+			wp_enqueue_style( 'akismet-font-inter' );
+
+			$akismet_admin_css_path = is_rtl() ? '_inc/rtl/akismet-admin-rtl.css' : '_inc/akismet-admin.css';
+			wp_register_style( 'akismet-admin', $ak_dir . $akismet_admin_css_path, array(), AKISMET_VERSION );
+			wp_enqueue_style( 'akismet-admin' );
+
+			wp_register_script( 'akismet.js', $ak_dir . '_inc/akismet.js', array( 'jquery' ), AKISMET_VERSION );
+			wp_enqueue_script( 'akismet.js' );
+
+			$inline_js = array(
+				'comment_author_url_nonce' => wp_create_nonce( 'comment_author_url_nonce' ),
+				'strings' => array(
+					'Remove this URL' => __( 'Remove this URL' , 'akismet'),
+					'Removing...'     => __( 'Removing...' , 'akismet'),
+					'URL removed'     => __( 'URL removed' , 'akismet'),
+					'(undo)'          => __( '(undo)' , 'akismet'),
+					'Re-adding...'    => __( 'Re-adding...' , 'akismet'),
+				)
+			);
+
+			if ( isset( $_GET['akismet_recheck'] ) && wp_verify_nonce( $_GET['akismet_recheck'], 'akismet_recheck' ) ) {
+				$inline_js['start_recheck'] = true;
+			}
+
+			wp_localize_script( 'akismet.js', 'WPAkismet', $inline_js );
+		}
 	}
 
 	/**
